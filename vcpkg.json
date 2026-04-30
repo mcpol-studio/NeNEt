@@ -1,0 +1,12 @@
+{
+  "name": "nenet",
+  "version": "0.1.0",
+  "dependencies": [
+    "glfw3",
+    "spdlog",
+    "vk-bootstrap",
+    "vulkan-memory-allocator",
+    "glm"
+  ],
+  "builtin-baseline": "80f9bcfa455e875d9c1bf7a7c6692d7e1e481061"
+}
