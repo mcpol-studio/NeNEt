@@ -9,6 +9,19 @@
 namespace nenet {
 
 ChunkMesh::ChunkMesh(VmaAllocator allocator, const ChunkMeshData& data) {
+    uploadFrom(allocator, data);
+}
+
+ChunkMesh::~ChunkMesh() = default;
+
+void ChunkMesh::rebuild(VmaAllocator allocator, const ChunkMeshData& data) {
+    vertexBuffer_.reset();
+    indexBuffer_.reset();
+    indexCount_ = 0;
+    uploadFrom(allocator, data);
+}
+
+void ChunkMesh::uploadFrom(VmaAllocator allocator, const ChunkMeshData& data) {
     if (data.vertices.empty() || data.indices.empty()) {
         spdlog::warn("ChunkMesh: 收到空网格数据");
         return;
@@ -37,8 +50,6 @@ ChunkMesh::ChunkMesh(VmaAllocator allocator, const ChunkMeshData& data) {
     spdlog::info("ChunkMesh GPU 上传完成 vSize={}KB iSize={}KB",
                  vSize / 1024, iSize / 1024);
 }
-
-ChunkMesh::~ChunkMesh() = default;
 
 void ChunkMesh::draw(VkCommandBuffer cmd) const {
     if (indexCount_ == 0) return;

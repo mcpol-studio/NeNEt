@@ -9,7 +9,7 @@ namespace nenet {
 class Chunk {
 public:
     static constexpr int kSizeX = 16;
-    static constexpr int kSizeY = 16;
+    static constexpr int kSizeY = 128;
     static constexpr int kSizeZ = 16;
     static constexpr int kVolume = kSizeX * kSizeY * kSizeZ;
 

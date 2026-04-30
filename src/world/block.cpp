@@ -10,6 +10,7 @@ glm::vec3 blockColor(Block b) noexcept {
         case Block::Sand:   return {0.86f, 0.80f, 0.55f};
         case Block::Wood:   return {0.45f, 0.30f, 0.15f};
         case Block::Leaves: return {0.20f, 0.55f, 0.20f};
+        case Block::Water:  return {0.18f, 0.45f, 0.82f};
         case Block::Air:
         default:            return {1.0f, 0.0f, 1.0f};
     }

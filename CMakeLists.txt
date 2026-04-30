@@ -26,6 +26,10 @@ add_executable(NeNEt
     src/render/swapchain.cpp
     src/render/shader.cpp
     src/render/pipeline.cpp
+    src/render/hotbar_pipeline.cpp
+    src/render/menu_pipeline.cpp
+    src/render/hud_pipeline.cpp
+    src/render/hud_renderer.cpp
     src/render/buffer.cpp
     src/render/depth_image.cpp
     src/render/camera.cpp
@@ -35,8 +39,16 @@ add_executable(NeNEt
     src/world/block.cpp
     src/world/chunk.cpp
     src/world/chunk_mesher.cpp
+    src/world/greedy_mesher.cpp
+    src/world/terrain_generator.cpp
+    src/world/chunk_manager.cpp
+    src/world/particle.cpp
     src/io/input.cpp
-    src/player/fly_controller.cpp
+    src/player/aabb.cpp
+    src/player/player.cpp
+    src/player/raycaster.cpp
+    src/ui/menu.cpp
+    src/ui/font.cpp
 )
 
 target_include_directories(NeNEt PRIVATE src)

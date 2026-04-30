@@ -15,6 +15,7 @@ enum class Block : uint8_t {
     Sand,
     Wood,
     Leaves,
+    Water,
 };
 
 [[nodiscard]] constexpr bool isSolid(Block b) noexcept {

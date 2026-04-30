@@ -16,6 +16,7 @@
       "name": "release",
       "inherits": "default",
       "displayName": "Release Ninja",
+      "binaryDir": "${sourceDir}/build-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "VCPKG_TARGET_TRIPLET": "x64-windows"

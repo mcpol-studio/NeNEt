@@ -1,4 +1,5 @@
 build/
+build-release/
 build-vs/
 out/
 .vs/
@@ -12,3 +13,4 @@ CMakeUserPresets.json
 vcpkg_installed/
 *.spv
 CLAUDE.md
+参考代码/

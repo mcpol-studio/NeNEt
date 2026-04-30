@@ -22,19 +22,42 @@ if errorlevel 1 (
 )
 echo cl: x64 OK
 
-if /i "%1"=="clean" (
-    echo === Cleaning build directory ===
-    if exist build rmdir /s /q build
+set "PRESET=default"
+set "BUILD_DIR=build"
+set "DO_CLEAN="
+
+:parse_args
+if "%~1"=="" goto run_build
+if /i "%~1"=="clean" goto arg_clean
+if /i "%~1"=="release" goto arg_release
+echo [ERROR] Unknown arg: %~1
+exit /b 1
+
+:arg_clean
+set "DO_CLEAN=1"
+shift
+goto parse_args
+
+:arg_release
+set "PRESET=release"
+set "BUILD_DIR=build-release"
+shift
+goto parse_args
+
+:run_build
+if defined DO_CLEAN (
+    echo === Cleaning %BUILD_DIR% ===
+    if exist %BUILD_DIR% rmdir /s /q %BUILD_DIR%
 )
 
-echo === CMake configure ===
-cmake --preset default || exit /b 1
+echo === CMake configure (preset=%PRESET%) ===
+cmake --preset %PRESET% || exit /b 1
 
 echo === CMake build ===
-cmake --build build || exit /b 1
+cmake --build %BUILD_DIR% --config Release || exit /b 1
 
 echo.
 echo =========================================
-echo  Build OK. Run:  .\build\NeNEt.exe
+echo  Build OK. Run:  .\%BUILD_DIR%\NeNEt.exe
 echo =========================================
 endlocal
