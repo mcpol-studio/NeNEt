@@ -42,7 +42,7 @@ std::optional<RaycastHit> Raycaster::cast(const BlockReader& reader,
     glm::ivec3 normal{0, 1, 0};
     float t = 0.0f;
 
-    if (isSolid(reader(x, y, z))) {
+    if (isHittable(reader(x, y, z))) {
         return RaycastHit{glm::ivec3{x, y, z}, normal, 0.0f};
     }
 
@@ -66,7 +66,7 @@ std::optional<RaycastHit> Raycaster::cast(const BlockReader& reader,
 
         if (t > maxDistance) break;
 
-        if (isSolid(reader(x, y, z))) {
+        if (isHittable(reader(x, y, z))) {
             return RaycastHit{glm::ivec3{x, y, z}, normal, t};
         }
     }

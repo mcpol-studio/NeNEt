@@ -13,8 +13,9 @@ struct ButtonRect {
 };
 
 constexpr ButtonRect kRects[Menu::kButtonCount] = {
-    {-0.22f, -0.06f,  0.44f, 0.12f},
-    {-0.22f,  0.12f,  0.44f, 0.12f},
+    {-0.30f, -0.13f, 0.60f, 0.10f},
+    {-0.30f,  0.01f, 0.60f, 0.10f},
+    {-0.30f,  0.15f, 0.60f, 0.10f},
 };
 
 bool inside(const ButtonRect& r, float ndcX, float ndcY) {
@@ -39,7 +40,8 @@ Menu::Action Menu::update(Input& input, int windowWidth, int windowHeight) {
 
     if (input.isMouseButtonJustPressed(GLFW_MOUSE_BUTTON_LEFT) && hoverIndex_ >= 0) {
         if (hoverIndex_ == 0) return Action::StartGame;
-        if (hoverIndex_ == 1) return Action::Quit;
+        if (hoverIndex_ == 1) return Action::OpenOthers;
+        if (hoverIndex_ == 2) return Action::Quit;
     }
     return Action::None;
 }

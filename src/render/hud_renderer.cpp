@@ -9,23 +9,25 @@ namespace nenet {
 
 HudRenderer::HudRenderer(VmaAllocator allocator, size_t maxQuads)
     : allocator_(allocator), maxQuads_(maxQuads) {
-    vertexBuffer_ = std::make_unique<Buffer>(
-        allocator_, maxQuads_ * 4 * sizeof(HudVertex),
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        VMA_MEMORY_USAGE_AUTO,
-        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
-        VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    for (size_t i = 0; i < kBufferCount; ++i) {
+        vertexBuffers_[i] = std::make_unique<Buffer>(
+            allocator_, maxQuads_ * 4 * sizeof(HudVertex),
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            VMA_MEMORY_USAGE_AUTO,
+            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+            VMA_ALLOCATION_CREATE_MAPPED_BIT);
 
-    indexBuffer_ = std::make_unique<Buffer>(
-        allocator_, maxQuads_ * 6 * sizeof(uint32_t),
-        VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-        VMA_MEMORY_USAGE_AUTO,
-        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
-        VMA_ALLOCATION_CREATE_MAPPED_BIT);
+        indexBuffers_[i] = std::make_unique<Buffer>(
+            allocator_, maxQuads_ * 6 * sizeof(uint32_t),
+            VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+            VMA_MEMORY_USAGE_AUTO,
+            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+            VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    }
 
     vertices_.reserve(maxQuads_ * 4);
     indices_.reserve(maxQuads_ * 6);
-    spdlog::info("HudRenderer 已初始化 maxQuads={}", maxQuads_);
+    spdlog::info("HudRenderer 已初始化 maxQuads={} buffers={}", maxQuads_, kBufferCount);
 }
 
 HudRenderer::~HudRenderer() = default;
@@ -86,21 +88,22 @@ void HudRenderer::addRect(float x0, float y0, float x1, float y1, const glm::vec
 }
 
 void HudRenderer::upload() {
+    currentBuffer_ = (currentBuffer_ + 1) % kBufferCount;
     if (vertices_.empty() || indices_.empty()) {
         indexCount_ = 0;
         return;
     }
-    vertexBuffer_->upload(vertices_.data(), vertices_.size() * sizeof(HudVertex));
-    indexBuffer_->upload(indices_.data(), indices_.size() * sizeof(uint32_t));
+    vertexBuffers_[currentBuffer_]->upload(vertices_.data(), vertices_.size() * sizeof(HudVertex));
+    indexBuffers_[currentBuffer_]->upload(indices_.data(), indices_.size() * sizeof(uint32_t));
     indexCount_ = static_cast<uint32_t>(indices_.size());
 }
 
 void HudRenderer::draw(VkCommandBuffer cmd) const {
     if (indexCount_ == 0) return;
-    VkBuffer vbufs[] = {vertexBuffer_->handle()};
+    VkBuffer vbufs[] = {vertexBuffers_[currentBuffer_]->handle()};
     VkDeviceSize offsets[] = {0};
     vkCmdBindVertexBuffers(cmd, 0, 1, vbufs, offsets);
-    vkCmdBindIndexBuffer(cmd, indexBuffer_->handle(), 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindIndexBuffer(cmd, indexBuffers_[currentBuffer_]->handle(), 0, VK_INDEX_TYPE_UINT32);
     vkCmdDrawIndexed(cmd, indexCount_, 1, 0, 0, 0);
 }
 

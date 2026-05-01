@@ -11,8 +11,8 @@ namespace nenet {
 
 namespace {
 
-constexpr float kGravity = -18.0f;
-constexpr int kParticlesPerBreak = 14;
+constexpr float kGravity = -20.0f;
+constexpr int kParticlesPerBreak = 10;
 
 constexpr glm::vec3 kCubeCorners[8] = {
     {-0.5f,-0.5f,-0.5f}, { 0.5f,-0.5f,-0.5f}, { 0.5f, 0.5f,-0.5f}, {-0.5f, 0.5f,-0.5f},
@@ -64,17 +64,20 @@ ParticleSystem::~ParticleSystem() = default;
 
 void ParticleSystem::spawnBlockBreak(const glm::ivec3& blockPos, Block block) {
     const glm::vec3 base(blockPos.x + 0.5f, blockPos.y + 0.5f, blockPos.z + 0.5f);
-    const glm::vec3 baseColor = blockColor(block);
+    const glm::ivec2 slot = atlasSlot(block, Face::PosY);
+    const glm::vec2 atlasOrigin = glm::vec2(slot) * (1.0f / 64.0f);
 
     for (int i = 0; i < kParticlesPerBreak; ++i) {
         if (particles_.size() >= kMaxParticles) break;
 
         Particle p;
-        p.position = base + glm::vec3(frand11() * 0.30f, frand11() * 0.30f, frand11() * 0.30f);
-        p.velocity = glm::vec3(frand11() * 2.5f, frand01() * 4.0f + 1.0f, frand11() * 2.5f);
-        p.color = baseColor * (0.85f + frand01() * 0.30f);
-        p.lifetime = 0.5f + frand01() * 0.4f;
-        p.size = 0.10f + frand01() * 0.06f;
+        p.position = base + glm::vec3(frand11() * 0.40f, frand11() * 0.40f, frand11() * 0.40f);
+        p.velocity = glm::vec3(frand11() * 1.6f, frand01() * 3.0f + 0.5f, frand11() * 1.6f);
+        p.color = glm::vec3(1.0f);
+        p.uv = glm::vec2(frand01() * 0.95f, frand01() * 0.95f);
+        p.atlasOrigin = atlasOrigin;
+        p.lifetime = 0.4f + frand01() * 0.35f;
+        p.size = 0.06f + frand01() * 0.06f;
         particles_.push_back(p);
     }
 }
@@ -103,6 +106,8 @@ void ParticleSystem::uploadGeometry() {
             Vertex v;
             v.position = p.position + corner * p.size;
             v.color = c;
+            v.uv = p.uv;
+            v.atlasOrigin = p.atlasOrigin;
             vertices_.push_back(v);
         }
         for (uint32_t idx : kCubeIndicesData) {

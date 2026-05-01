@@ -11,12 +11,12 @@ namespace nenet {
 
 namespace {
 
-struct Face {
+struct FaceTemplate {
     glm::vec3 corners[4];
     glm::ivec3 normal;
 };
 
-constexpr Face kFaces[6] = {
+constexpr FaceTemplate kFaces[6] = {
     {{{1, 0, 0}, {1, 1, 0}, {1, 1, 1}, {1, 0, 1}}, {1, 0, 0}},
     {{{0, 0, 1}, {0, 1, 1}, {0, 1, 0}, {0, 0, 0}}, {-1, 0, 0}},
     {{{0, 1, 0}, {0, 1, 1}, {1, 1, 1}, {1, 1, 0}}, {0, 1, 0}},
@@ -50,7 +50,7 @@ ChunkMeshData NaiveMesher::mesh(const Chunk& chunk) {
                 const glm::vec3 origin(x, y, z);
                 const glm::vec3 baseColor = blockColor(b);
 
-                for (const Face& face : kFaces) {
+                for (const FaceTemplate& face : kFaces) {
                     const int nx = x + face.normal.x;
                     const int ny = y + face.normal.y;
                     const int nz = z + face.normal.z;
@@ -62,7 +62,7 @@ ChunkMeshData NaiveMesher::mesh(const Chunk& chunk) {
                     const uint32_t base = static_cast<uint32_t>(out.vertices.size());
 
                     for (const glm::vec3& corner : face.corners) {
-                        out.vertices.push_back({origin + corner, shaded});
+                        out.vertices.push_back({origin + corner, shaded, {0.0f, 0.0f}, {0.0f, 0.0f}});
                     }
                     out.indices.push_back(base + 0);
                     out.indices.push_back(base + 1);

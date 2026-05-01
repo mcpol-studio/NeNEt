@@ -4,6 +4,7 @@
 #include <glm/glm.hpp>
 
 #include <array>
+#include <string>
 
 struct GLFWwindow;
 
@@ -27,9 +28,13 @@ public:
 
     [[nodiscard]] glm::vec2 mouseDelta() const noexcept { return mouseDelta_; }
     [[nodiscard]] glm::dvec2 mousePosPixels() const noexcept;
+    [[nodiscard]] float scrollDelta() const noexcept { return scrollDelta_; }
 
     [[nodiscard]] bool isMouseCaptured() const noexcept { return captured_; }
     void setMouseCaptured(bool captured) noexcept;
+
+    [[nodiscard]] const std::string& typedChars() const noexcept { return typedChars_; }
+    void setTextInputEnabled(bool b) noexcept { textInputEnabled_ = b; }
 
 private:
     GLFWwindow* window_;
@@ -45,6 +50,17 @@ private:
     std::array<bool, kKeyCount> prevKeys_{};
     std::array<bool, kMouseButtonCount> currMouseBtn_{};
     std::array<bool, kMouseButtonCount> prevMouseBtn_{};
+
+    double scrollAccum_{0.0};
+    float scrollDelta_{0.0f};
+
+    bool textInputEnabled_{false};
+    std::string typedChars_;
+    std::string typedAccum_;
+
+    static Input* instance_;
+    static void scrollCallback(GLFWwindow* w, double xoff, double yoff);
+    static void charCallback(GLFWwindow* w, unsigned int codepoint);
 };
 
 }

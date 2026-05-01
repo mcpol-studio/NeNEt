@@ -35,13 +35,15 @@ public:
     [[nodiscard]] bool empty() const noexcept { return indexCount_ == 0; }
 
 private:
+    static constexpr size_t kBufferCount = 2;
     VmaAllocator allocator_;
     size_t maxQuads_;
-    std::unique_ptr<Buffer> vertexBuffer_;
-    std::unique_ptr<Buffer> indexBuffer_;
+    std::unique_ptr<Buffer> vertexBuffers_[kBufferCount];
+    std::unique_ptr<Buffer> indexBuffers_[kBufferCount];
     std::vector<HudVertex> vertices_;
     std::vector<uint32_t> indices_;
     uint32_t indexCount_{0};
+    size_t currentBuffer_{0};
 };
 
 }

@@ -9,7 +9,7 @@ class Input;
 
 class Menu {
 public:
-    enum class Action { None, StartGame, Quit };
+    enum class Action { None, StartGame, OpenOthers, Quit };
 
     Menu() = default;
 
@@ -17,7 +17,7 @@ public:
 
     [[nodiscard]] int hoverIndex() const noexcept { return hoverIndex_; }
 
-    static constexpr int kButtonCount = 2;
+    static constexpr int kButtonCount = 3;
 
 private:
     int hoverIndex_{-1};

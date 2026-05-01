@@ -14,3 +14,5 @@ vcpkg_installed/
 *.spv
 CLAUDE.md
 参考代码/
+modules/
+*.cookie.json

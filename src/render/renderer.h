@@ -7,7 +7,9 @@
 
 #include <array>
 #include <cstdint>
+#include <filesystem>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace nenet {
@@ -19,15 +21,20 @@ class HotbarPipeline;
 class MenuPipeline;
 class HudPipeline;
 class HudRenderer;
+class OutlinePipeline;
+class WallpaperPipeline;
+class Texture;
 class DepthImage;
 class Camera;
 class ChunkManager;
 class ParticleSystem;
+class FallingBlocks;
 
 class Renderer {
 public:
     Renderer(VulkanContext& ctx, Swapchain& swapchain, Camera& camera,
-             ChunkManager& manager, ParticleSystem& particles);
+             ChunkManager& manager, ParticleSystem& particles, FallingBlocks& falling,
+             const std::optional<std::filesystem::path>& wallpaperPath = std::nullopt);
     ~Renderer();
 
     Renderer(const Renderer&) = delete;
@@ -35,9 +42,11 @@ public:
 
     void drawFrame();
     void setHotbar(int selectedSlot, const std::array<glm::vec4, 6>& colors) noexcept;
-    void setMenuVisible(bool visible, int hoverIndex) noexcept;
+    void setMenuVisible(bool visible, int hoverIndex, bool drawButtons = true) noexcept;
     [[nodiscard]] HudRenderer& hud() noexcept { return *hud_; }
     void setHudVisible(bool visible) noexcept { hudVisible_ = visible; }
+    void setSelectedBlock(bool has, const glm::ivec3& pos) noexcept;
+    void setUnderwater(bool b) noexcept { underwater_ = b; }
 
     static constexpr uint32_t kFramesInFlight = 2;
 
@@ -63,11 +72,19 @@ private:
     Camera& camera_;
     ChunkManager& manager_;
     ParticleSystem& particles_;
+    FallingBlocks& falling_;
     std::unique_ptr<CubePipeline> pipeline_;
     std::unique_ptr<HotbarPipeline> hotbarPipeline_;
     std::unique_ptr<MenuPipeline> menuPipeline_;
     std::unique_ptr<HudPipeline> hudPipeline_;
     std::unique_ptr<HudRenderer> hud_;
+    std::unique_ptr<OutlinePipeline> outlinePipeline_;
+    std::unique_ptr<WallpaperPipeline> wallpaperPipeline_;
+    std::unique_ptr<Texture> atlasTexture_;
+    std::unique_ptr<Texture> wallpaperTexture_;
+    VkDescriptorPool descriptorPool_{VK_NULL_HANDLE};
+    VkDescriptorSet atlasDescriptorSet_{VK_NULL_HANDLE};
+    VkDescriptorSet wallpaperDescriptorSet_{VK_NULL_HANDLE};
     std::unique_ptr<DepthImage> depth_;
     std::array<FrameData, kFramesInFlight> frames_;
     std::vector<VkSemaphore> renderFinishedPerImage_;
@@ -78,7 +95,12 @@ private:
 
     bool menuVisible_{false};
     int menuHover_{-1};
+    bool menuButtonsVisible_{true};
     bool hudVisible_{false};
+
+    bool hasSelectedBlock_{false};
+    glm::ivec3 selectedBlock_{0};
+    bool underwater_{false};
 };
 
 }

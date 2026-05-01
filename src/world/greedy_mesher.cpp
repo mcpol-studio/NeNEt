@@ -69,14 +69,14 @@ ChunkMeshData GreedyMesher::mesh(const Chunk& chunk) {
                     const Block bk1 = (i >= 0) ? chunk.get(p1.x, p1.y, p1.z) : Block::Air;
                     const Block bk2 = (i + 1 < sizeD) ? chunk.get(p2.x, p2.y, p2.z) : Block::Air;
 
-                    const bool s1 = isSolid(bk1);
-                    const bool s2 = isSolid(bk2);
+                    const int l1 = transparencyLevel(bk1);
+                    const int l2 = transparencyLevel(bk2);
 
                     MaskEntry m{};
-                    if (s1 && !s2) {
+                    if (bk1 != Block::Air && !isCrossPlant(bk1) && l2 > l1) {
                         m.block = bk1;
                         m.positive = true;
-                    } else if (!s1 && s2) {
+                    } else if (bk2 != Block::Air && !isCrossPlant(bk2) && l1 > l2) {
                         m.block = bk2;
                         m.positive = false;
                     }
@@ -119,19 +119,47 @@ ChunkMeshData GreedyMesher::mesh(const Chunk& chunk) {
                     const glm::vec3 dU = glm::vec3(du) * static_cast<float>(w);
                     const glm::vec3 dV = glm::vec3(dv) * static_cast<float>(h);
 
-                    const glm::vec3 color = blockColor(cell.block) * shadeForNormal(normal);
+                    const glm::vec3 color = shadeForNormal(normal);
+
+                    Face faceEnum;
+                    if (d == 0) faceEnum = cell.positive ? Face::PosX : Face::NegX;
+                    else if (d == 1) faceEnum = cell.positive ? Face::PosY : Face::NegY;
+                    else faceEnum = cell.positive ? Face::PosZ : Face::NegZ;
+                    const glm::ivec2 slot = atlasSlot(cell.block, faceEnum);
+                    const glm::vec2 atlasOrigin = glm::vec2(slot) * (1.0f / 64.0f);
+
+                    const float fw = static_cast<float>(w);
+                    const float fh = static_cast<float>(h);
+                    glm::vec2 uv00, uv10, uv11, uv01;
+                    if (d == 0) {
+                        uv00 = glm::vec2(0.0f, fw);
+                        uv10 = glm::vec2(0.0f, 0.0f);
+                        uv11 = glm::vec2(fh,   0.0f);
+                        uv01 = glm::vec2(fh,   fw);
+                    } else if (d == 1) {
+                        uv00 = glm::vec2(0.0f, 0.0f);
+                        uv10 = glm::vec2(0.0f, fw);
+                        uv11 = glm::vec2(fh,   fw);
+                        uv01 = glm::vec2(fh,   0.0f);
+                    } else {
+                        uv00 = glm::vec2(0.0f, fh);
+                        uv10 = glm::vec2(fw,   fh);
+                        uv11 = glm::vec2(fw,   0.0f);
+                        uv01 = glm::vec2(0.0f, 0.0f);
+                    }
+
                     const uint32_t base = static_cast<uint32_t>(out.vertices.size());
 
                     if (cell.positive) {
-                        out.vertices.push_back({origin,           color});
-                        out.vertices.push_back({origin + dU,      color});
-                        out.vertices.push_back({origin + dU + dV, color});
-                        out.vertices.push_back({origin + dV,      color});
+                        out.vertices.push_back({origin,           color, uv00, atlasOrigin});
+                        out.vertices.push_back({origin + dU,      color, uv10, atlasOrigin});
+                        out.vertices.push_back({origin + dU + dV, color, uv11, atlasOrigin});
+                        out.vertices.push_back({origin + dV,      color, uv01, atlasOrigin});
                     } else {
-                        out.vertices.push_back({origin,           color});
-                        out.vertices.push_back({origin + dV,      color});
-                        out.vertices.push_back({origin + dU + dV, color});
-                        out.vertices.push_back({origin + dU,      color});
+                        out.vertices.push_back({origin,           color, uv00, atlasOrigin});
+                        out.vertices.push_back({origin + dV,      color, uv01, atlasOrigin});
+                        out.vertices.push_back({origin + dU + dV, color, uv11, atlasOrigin});
+                        out.vertices.push_back({origin + dU,      color, uv10, atlasOrigin});
                     }
                     out.indices.push_back(base + 0);
                     out.indices.push_back(base + 1);
@@ -147,6 +175,52 @@ ChunkMeshData GreedyMesher::mesh(const Chunk& chunk) {
                     }
 
                     a += w;
+                }
+            }
+        }
+    }
+
+    for (int y = 0; y < Chunk::kSizeY; ++y) {
+        for (int z = 0; z < Chunk::kSizeZ; ++z) {
+            for (int x = 0; x < Chunk::kSizeX; ++x) {
+                const Block bk = chunk.get(x, y, z);
+                if (!isCrossPlant(bk)) continue;
+
+                const glm::ivec2 slot = atlasSlot(bk, Face::PosY);
+                const glm::vec2 atlasOrigin = glm::vec2(slot) * (1.0f / 64.0f);
+                const glm::vec3 color(1.0f);
+                const float fx = static_cast<float>(x);
+                const float fy = static_cast<float>(y);
+                const float fz = static_cast<float>(z);
+
+                struct Quad {
+                    glm::vec3 a, b, c, d;
+                };
+                const Quad q1{
+                    {fx + 0.0f, fy + 0.0f, fz + 0.0f},
+                    {fx + 1.0f, fy + 0.0f, fz + 1.0f},
+                    {fx + 1.0f, fy + 1.0f, fz + 1.0f},
+                    {fx + 0.0f, fy + 1.0f, fz + 0.0f},
+                };
+                const Quad q2{
+                    {fx + 1.0f, fy + 0.0f, fz + 0.0f},
+                    {fx + 0.0f, fy + 0.0f, fz + 1.0f},
+                    {fx + 0.0f, fy + 1.0f, fz + 1.0f},
+                    {fx + 1.0f, fy + 1.0f, fz + 0.0f},
+                };
+
+                for (const Quad& q : {q1, q2}) {
+                    const uint32_t base = static_cast<uint32_t>(out.vertices.size());
+                    out.vertices.push_back({q.a, color, {0.0f, 1.0f}, atlasOrigin});
+                    out.vertices.push_back({q.b, color, {1.0f, 1.0f}, atlasOrigin});
+                    out.vertices.push_back({q.c, color, {1.0f, 0.0f}, atlasOrigin});
+                    out.vertices.push_back({q.d, color, {0.0f, 0.0f}, atlasOrigin});
+                    out.indices.push_back(base + 0);
+                    out.indices.push_back(base + 1);
+                    out.indices.push_back(base + 2);
+                    out.indices.push_back(base + 0);
+                    out.indices.push_back(base + 2);
+                    out.indices.push_back(base + 3);
                 }
             }
         }

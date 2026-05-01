@@ -4,7 +4,24 @@
 
 namespace nenet {
 
-Input::Input(GLFWwindow* window) : window_(window) {}
+Input* Input::instance_ = nullptr;
+
+void Input::scrollCallback(GLFWwindow* , double , double yoff) {
+    if (instance_) instance_->scrollAccum_ += yoff;
+}
+
+Input::Input(GLFWwindow* window) : window_(window) {
+    instance_ = this;
+    glfwSetScrollCallback(window_, scrollCallback);
+    glfwSetCharCallback(window_, charCallback);
+}
+
+void Input::charCallback(GLFWwindow* , unsigned int codepoint) {
+    if (!instance_) return;
+    if (!instance_->textInputEnabled_) return;
+    if (codepoint < 0x20 || codepoint > 0x7E) return;
+    instance_->typedAccum_.push_back(static_cast<char>(codepoint));
+}
 
 void Input::setMouseCaptured(bool captured) noexcept {
     captured_ = captured;
@@ -20,6 +37,9 @@ void Input::setMouseCaptured(bool captured) noexcept {
 }
 
 void Input::beginFrame() {
+    typedChars_ = std::move(typedAccum_);
+    typedAccum_.clear();
+
     if (captured_) {
         glm::dvec2 cur;
         glfwGetCursorPos(window_, &cur.x, &cur.y);
@@ -42,6 +62,9 @@ void Input::beginFrame() {
     for (size_t i = 0; i < currMouseBtn_.size(); ++i) {
         currMouseBtn_[i] = (glfwGetMouseButton(window_, static_cast<int>(i)) == GLFW_PRESS);
     }
+
+    scrollDelta_ = static_cast<float>(scrollAccum_);
+    scrollAccum_ = 0.0;
 }
 
 void Input::endFrame() {

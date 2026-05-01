@@ -1,15 +1,16 @@
 #version 450
 
 layout(push_constant) uniform Push {
-    vec4 colors[2];
+    vec4 colors[3];
     int hoverIndex;
 } pc;
 
 layout(location = 0) out vec4 fragColor;
 
-const vec4 kRects[2] = vec4[](
-    vec4(-0.22, -0.06,  0.44, 0.12),
-    vec4(-0.22,  0.12,  0.44, 0.12)
+const vec4 kRects[3] = vec4[](
+    vec4(-0.30f, -0.13f, 0.60f, 0.10f),
+    vec4(-0.30f,  0.01f, 0.60f, 0.10f),
+    vec4(-0.30f,  0.15f, 0.60f, 0.10f)
 );
 
 void main() {
@@ -26,8 +27,8 @@ void main() {
     if (hover) {
         x0 -= 0.012;
         x1 += 0.012;
-        y0 -= 0.012;
-        y1 += 0.012;
+        y0 -= 0.010;
+        y1 += 0.010;
     }
 
     vec2 p;

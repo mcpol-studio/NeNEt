@@ -7,12 +7,17 @@
 #include "hud_pipeline.h"
 #include "hud_renderer.h"
 #include "menu_pipeline.h"
+#include "outline_pipeline.h"
 #include "pipeline.h"
+#include "shader.h"
+#include "texture.h"
 #include "swapchain.h"
+#include "wallpaper_pipeline.h"
 #include "vertex.h"
 #include "vulkan_context.h"
 #include "../world/chunk.h"
 #include "../world/chunk_manager.h"
+#include "../world/falling_blocks.h"
 #include "../world/particle.h"
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -34,9 +39,10 @@ void check(VkResult r, const char* what) {
 }
 
 Renderer::Renderer(VulkanContext& ctx, Swapchain& swapchain, Camera& camera,
-                   ChunkManager& manager, ParticleSystem& particles)
+                   ChunkManager& manager, ParticleSystem& particles, FallingBlocks& falling,
+                   const std::optional<std::filesystem::path>& wallpaperPath)
     : ctx_(ctx), swapchain_(swapchain), camera_(camera),
-      manager_(manager), particles_(particles) {
+      manager_(manager), particles_(particles), falling_(falling) {
     createFrames();
     createPerImageSemaphores();
     depth_ = std::make_unique<DepthImage>(ctx_.device(), ctx_.allocator(),
@@ -54,11 +60,100 @@ Renderer::Renderer(VulkanContext& ctx, Swapchain& swapchain, Camera& camera,
                                                   swapchain_.imageFormat(),
                                                   depth_->format());
     hud_ = std::make_unique<HudRenderer>(ctx_.allocator());
+    outlinePipeline_ = std::make_unique<OutlinePipeline>(ctx_.device(),
+                                                          swapchain_.imageFormat(),
+                                                          depth_->format());
+    wallpaperPipeline_ = std::make_unique<WallpaperPipeline>(ctx_.device(),
+                                                              swapchain_.imageFormat(),
+                                                              depth_->format());
+
+    atlasTexture_ = std::make_unique<Texture>(ctx_, executableDir() / "textures" / "atlas.png");
+
+    if (wallpaperPath && std::filesystem::exists(*wallpaperPath)) {
+        try {
+            wallpaperTexture_ = std::make_unique<Texture>(ctx_, *wallpaperPath,
+                                                            Texture::FilterMode::Linear,
+                                                            Texture::AddressMode::ClampToEdge);
+        } catch (const std::exception& ex) {
+            spdlog::warn("Wallpaper 加载失败: {}", ex.what());
+            wallpaperTexture_.reset();
+        }
+    }
+
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSize.descriptorCount = 32;
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.maxSets = 32;
+    if (vkCreateDescriptorPool(ctx_.device(), &poolInfo, nullptr, &descriptorPool_) != VK_SUCCESS) {
+        throw std::runtime_error("vkCreateDescriptorPool 失败");
+    }
+
+    VkDescriptorSetLayout layout = pipeline_->descriptorSetLayout();
+    VkDescriptorSetAllocateInfo dsAlloc{};
+    dsAlloc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    dsAlloc.descriptorPool = descriptorPool_;
+    dsAlloc.descriptorSetCount = 1;
+    dsAlloc.pSetLayouts = &layout;
+    if (vkAllocateDescriptorSets(ctx_.device(), &dsAlloc, &atlasDescriptorSet_) != VK_SUCCESS) {
+        throw std::runtime_error("vkAllocateDescriptorSets 失败");
+    }
+
+    VkDescriptorImageInfo imgInfo{};
+    imgInfo.sampler = atlasTexture_->sampler();
+    imgInfo.imageView = atlasTexture_->view();
+    imgInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    VkWriteDescriptorSet write{};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = atlasDescriptorSet_;
+    write.dstBinding = 0;
+    write.descriptorCount = 1;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.pImageInfo = &imgInfo;
+    vkUpdateDescriptorSets(ctx_.device(), 1, &write, 0, nullptr);
+
+    if (wallpaperTexture_) {
+        VkDescriptorSetLayout wpLayout = wallpaperPipeline_->descriptorSetLayout();
+        VkDescriptorSetAllocateInfo wpAlloc{};
+        wpAlloc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        wpAlloc.descriptorPool = descriptorPool_;
+        wpAlloc.descriptorSetCount = 1;
+        wpAlloc.pSetLayouts = &wpLayout;
+        if (vkAllocateDescriptorSets(ctx_.device(), &wpAlloc, &wallpaperDescriptorSet_) != VK_SUCCESS) {
+            throw std::runtime_error("vkAllocateDescriptorSets 失败 (wallpaper)");
+        }
+        VkDescriptorImageInfo wpImg{};
+        wpImg.sampler = wallpaperTexture_->sampler();
+        wpImg.imageView = wallpaperTexture_->view();
+        wpImg.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        VkWriteDescriptorSet wpWrite{};
+        wpWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        wpWrite.dstSet = wallpaperDescriptorSet_;
+        wpWrite.dstBinding = 0;
+        wpWrite.descriptorCount = 1;
+        wpWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        wpWrite.pImageInfo = &wpImg;
+        vkUpdateDescriptorSets(ctx_.device(), 1, &wpWrite, 0, nullptr);
+        spdlog::info("Wallpaper texture 已绑定 {}x{}",
+                     wallpaperTexture_->width(), wallpaperTexture_->height());
+    }
+
     spdlog::info("Renderer 已初始化");
 }
 
 Renderer::~Renderer() {
     vkDeviceWaitIdle(ctx_.device());
+    if (descriptorPool_ != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(ctx_.device(), descriptorPool_, nullptr);
+    }
+    atlasTexture_.reset();
+    wallpaperTexture_.reset();
+    wallpaperPipeline_.reset();
+    outlinePipeline_.reset();
     hud_.reset();
     hudPipeline_.reset();
     menuPipeline_.reset();
@@ -70,14 +165,20 @@ Renderer::~Renderer() {
     spdlog::info("Renderer 已销毁");
 }
 
+void Renderer::setSelectedBlock(bool has, const glm::ivec3& pos) noexcept {
+    hasSelectedBlock_ = has;
+    selectedBlock_ = pos;
+}
+
 void Renderer::setHotbar(int selectedSlot, const std::array<glm::vec4, 6>& colors) noexcept {
     hotbarSelected_ = selectedSlot;
     hotbarColors_ = colors;
 }
 
-void Renderer::setMenuVisible(bool visible, int hoverIndex) noexcept {
+void Renderer::setMenuVisible(bool visible, int hoverIndex, bool drawButtons) noexcept {
     menuVisible_ = visible;
     menuHover_ = hoverIndex;
+    menuButtonsVisible_ = drawButtons;
 }
 
 void Renderer::createFrames() {
@@ -197,7 +298,9 @@ void Renderer::recordCommand(VkCommandBuffer cmd, uint32_t imageIndex) {
     colorAttach.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     colorAttach.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttach.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttach.clearValue.color = {{0.50f, 0.70f, 0.90f, 1.0f}};
+    colorAttach.clearValue.color = underwater_
+        ? VkClearColorValue{{0.08f, 0.20f, 0.45f, 1.0f}}
+        : VkClearColorValue{{0.50f, 0.70f, 0.90f, 1.0f}};
 
     VkRenderingAttachmentInfo depthAttach{};
     depthAttach.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -231,7 +334,29 @@ void Renderer::recordCommand(VkCommandBuffer cmd, uint32_t imageIndex) {
     scissor.extent = swapchain_.extent();
     vkCmdSetScissor(cmd, 0, 1, &scissor);
 
+    if (menuVisible_ && wallpaperTexture_ && wallpaperDescriptorSet_ != VK_NULL_HANDLE) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, wallpaperPipeline_->handle());
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, wallpaperPipeline_->layout(),
+                                 0, 1, &wallpaperDescriptorSet_, 0, nullptr);
+        WallpaperPush wp{};
+        wp.viewport = glm::vec2(static_cast<float>(swapchain_.extent().width),
+                                static_cast<float>(swapchain_.extent().height));
+        wp.imageSize = glm::vec2(static_cast<float>(wallpaperTexture_->width()),
+                                  static_cast<float>(wallpaperTexture_->height()));
+        wp.glassMix = 0.20f;
+        wp.vignette = 0.55f;
+        wp.blurRadius = 6.0f;
+        vkCmdPushConstants(cmd, wallpaperPipeline_->layout(),
+                           VK_SHADER_STAGE_FRAGMENT_BIT,
+                           0, sizeof(WallpaperPush), &wp);
+        vkCmdDraw(cmd, 3, 1, 0, 0);
+    }
+
+    if (!menuVisible_) {
+
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_->handle());
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_->layout(),
+                             0, 1, &atlasDescriptorSet_, 0, nullptr);
 
     const glm::mat4 viewProj = camera_.viewProj();
     const auto now = std::chrono::steady_clock::now();
@@ -257,32 +382,71 @@ void Renderer::recordCommand(VkCommandBuffer cmd, uint32_t imageIndex) {
             glm::vec3(static_cast<float>(cx * Chunk::kSizeX),
                       yOffset,
                       static_cast<float>(cz * Chunk::kSizeZ)));
+        const glm::vec4 tint = underwater_
+            ? glm::vec4(0.10f, 0.30f, 0.65f, 0.55f)
+            : glm::vec4(0.0f);
         PushConstants pc{};
         pc.mvp = viewProj * model;
-        vkCmdPushConstants(cmd, pipeline_->layout(), VK_SHADER_STAGE_VERTEX_BIT,
+        pc.tint = tint;
+        vkCmdPushConstants(cmd, pipeline_->layout(),
+                           VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                            0, sizeof(PushConstants), &pc);
         entry.mesh->draw(cmd);
     }
 
+    const glm::vec4 tintShared = underwater_
+        ? glm::vec4(0.10f, 0.30f, 0.65f, 0.55f)
+        : glm::vec4(0.0f);
+
     if (!particles_.empty()) {
-        const glm::mat4 vp = camera_.viewProj();
+        const glm::mat4 viewProjMtx = camera_.viewProj();
         PushConstants pcParticles{};
-        pcParticles.mvp = vp;
-        vkCmdPushConstants(cmd, pipeline_->layout(), VK_SHADER_STAGE_VERTEX_BIT,
+        pcParticles.mvp = viewProjMtx;
+        pcParticles.tint = tintShared;
+        vkCmdPushConstants(cmd, pipeline_->layout(),
+                           VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                            0, sizeof(PushConstants), &pcParticles);
         particles_.draw(cmd);
     }
 
-    if (menuVisible_) {
+    if (!falling_.empty()) {
+        PushConstants pcFall{};
+        pcFall.mvp = camera_.viewProj();
+        pcFall.tint = tintShared;
+        vkCmdPushConstants(cmd, pipeline_->layout(),
+                           VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                           0, sizeof(PushConstants), &pcFall);
+        falling_.draw(cmd);
+    }
+
+    }
+
+    if (!menuVisible_ && hasSelectedBlock_) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, outlinePipeline_->handle());
+        const glm::vec3 origin(static_cast<float>(selectedBlock_.x) - 0.001f,
+                                static_cast<float>(selectedBlock_.y) - 0.001f,
+                                static_cast<float>(selectedBlock_.z) - 0.001f);
+        const glm::mat4 model = glm::translate(glm::mat4(1.0f), origin)
+                              * glm::scale(glm::mat4(1.0f), glm::vec3(1.002f));
+        OutlinePush pcOutline{};
+        pcOutline.mvp = camera_.viewProj() * model;
+        pcOutline.color = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+        vkCmdPushConstants(cmd, outlinePipeline_->layout(), VK_SHADER_STAGE_VERTEX_BIT,
+                           0, sizeof(OutlinePush), &pcOutline);
+        vkCmdDraw(cmd, 24, 1, 0, 0);
+    }
+
+    if (menuVisible_ && menuButtonsVisible_) {
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, menuPipeline_->handle());
         MenuPush menuPC{};
         menuPC.colors[0] = glm::vec4(0.30f, 0.65f, 0.30f, 1.0f);
-        menuPC.colors[1] = glm::vec4(0.65f, 0.25f, 0.25f, 1.0f);
+        menuPC.colors[1] = glm::vec4(0.45f, 0.55f, 0.85f, 1.0f);
+        menuPC.colors[2] = glm::vec4(0.65f, 0.25f, 0.25f, 1.0f);
         menuPC.hoverIndex = menuHover_;
         vkCmdPushConstants(cmd, menuPipeline_->layout(), VK_SHADER_STAGE_VERTEX_BIT,
                            0, sizeof(MenuPush), &menuPC);
-        vkCmdDraw(cmd, 12, 1, 0, 0);
-    } else {
+        vkCmdDraw(cmd, 18, 1, 0, 0);
+    } else if (!menuVisible_) {
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, hotbarPipeline_->handle());
         HotbarPush hotbarPC{};
         for (size_t i = 0; i < hotbarColors_.size(); ++i) hotbarPC.colors[i] = hotbarColors_[i];

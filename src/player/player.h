@@ -35,6 +35,22 @@ public:
 
     void setFlying(bool b) noexcept;
 
+    static constexpr int kMaxHealth = 20;
+    [[nodiscard]] int health() const noexcept { return health_; }
+    [[nodiscard]] int maxHealth() const noexcept { return kMaxHealth; }
+    [[nodiscard]] bool isDead() const noexcept { return health_ <= 0; }
+    void damage(int amount) noexcept {
+        if (amount <= 0) return;
+        health_ -= amount;
+        if (health_ < 0) health_ = 0;
+    }
+    void heal(int amount) noexcept {
+        if (amount <= 0) return;
+        health_ += amount;
+        if (health_ > kMaxHealth) health_ = kMaxHealth;
+    }
+    void resetHealth() noexcept { health_ = kMaxHealth; }
+
 private:
     glm::vec3 resolveCollision(glm::vec3 motion, const BlockReader& reader) const;
     void applyCameraFromFoot();
@@ -45,6 +61,7 @@ private:
     bool onGround_{false};
     bool flying_{true};
     double lastSpaceTime_{-10.0};
+    int health_{kMaxHealth};
 };
 
 }

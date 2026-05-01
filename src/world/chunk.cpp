@@ -12,6 +12,10 @@ void Chunk::set(int x, int y, int z, Block b) noexcept {
     blocks_[index(x, y, z)] = b;
 }
 
+void Chunk::clear() noexcept {
+    blocks_.fill(Block::Air);
+}
+
 void Chunk::fillTestTerrain() {
     for (int z = 0; z < kSizeZ; ++z) {
         for (int x = 0; x < kSizeX; ++x) {

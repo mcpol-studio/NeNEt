@@ -10,11 +10,11 @@
 namespace nenet {
 
 struct MenuPush {
-    glm::vec4 colors[2];
+    glm::vec4 colors[3];
     int32_t hoverIndex;
     int32_t _pad[3];
 };
-static_assert(sizeof(MenuPush) == 48, "MenuPush 大小不匹配");
+static_assert(sizeof(MenuPush) == 64, "MenuPush 大小不匹配");
 
 class MenuPipeline {
 public:

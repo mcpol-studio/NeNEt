@@ -38,6 +38,8 @@ private:
         glm::vec3 position;
         glm::vec3 velocity;
         glm::vec3 color;
+        glm::vec2 uv;
+        glm::vec2 atlasOrigin;
         float lifetime;
         float size;
     };

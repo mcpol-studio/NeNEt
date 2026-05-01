@@ -14,11 +14,13 @@ public:
 
     [[nodiscard]] VkPipeline handle() const noexcept { return pipeline_; }
     [[nodiscard]] VkPipelineLayout layout() const noexcept { return layout_; }
+    [[nodiscard]] VkDescriptorSetLayout descriptorSetLayout() const noexcept { return descriptorLayout_; }
 
 private:
     VkDevice device_{VK_NULL_HANDLE};
     VkPipeline pipeline_{VK_NULL_HANDLE};
     VkPipelineLayout layout_{VK_NULL_HANDLE};
+    VkDescriptorSetLayout descriptorLayout_{VK_NULL_HANDLE};
 };
 
 }

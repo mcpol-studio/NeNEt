@@ -36,7 +36,10 @@ AABB makePlayerAABB(const glm::vec3& foot) {
 }
 
 bool isCollisionBlock(Block b) {
-    return b != Block::Air && b != Block::Water;
+    return b != Block::Air && b != Block::Water && b != Block::Lava
+        && b != Block::Flower && b != Block::TallGrass
+        && b != Block::SugarCane && b != Block::LilyPad
+        && b != Block::Coral && b != Block::Kelp;
 }
 
 }

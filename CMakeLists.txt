@@ -17,6 +17,7 @@ find_package(spdlog CONFIG REQUIRED)
 find_package(vk-bootstrap CONFIG REQUIRED)
 find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
+find_path(STB_INCLUDE_DIRS "stb_image.h" REQUIRED)
 
 add_executable(NeNEt
     src/main.cpp
@@ -28,22 +29,32 @@ add_executable(NeNEt
     src/render/pipeline.cpp
     src/render/hotbar_pipeline.cpp
     src/render/menu_pipeline.cpp
+    src/render/outline_pipeline.cpp
     src/render/hud_pipeline.cpp
     src/render/hud_renderer.cpp
+    src/render/wallpaper_pipeline.cpp
     src/render/buffer.cpp
     src/render/depth_image.cpp
+    src/render/texture.cpp
+    src/render/stb_impl.cpp
     src/render/camera.cpp
     src/render/chunk_mesh.cpp
     src/render/renderer.cpp
     src/render/vma_impl.cpp
     src/world/block.cpp
+    src/world/block_registry.cpp
     src/world/chunk.cpp
     src/world/chunk_mesher.cpp
     src/world/greedy_mesher.cpp
     src/world/terrain_generator.cpp
     src/world/chunk_manager.cpp
     src/world/particle.cpp
+    src/world/biome.cpp
+    src/world/falling_blocks.cpp
     src/io/input.cpp
+    src/io/wallpaper.cpp
+    src/io/rpc_client.cpp
+    src/io/udp_client.cpp
     src/player/aabb.cpp
     src/player/player.cpp
     src/player/raycaster.cpp
@@ -51,7 +62,7 @@ add_executable(NeNEt
     src/ui/font.cpp
 )
 
-target_include_directories(NeNEt PRIVATE src)
+target_include_directories(NeNEt PRIVATE src ${STB_INCLUDE_DIRS})
 target_link_libraries(NeNEt PRIVATE
     glfw
     spdlog::spdlog
@@ -60,6 +71,10 @@ target_link_libraries(NeNEt PRIVATE
     GPUOpen::VulkanMemoryAllocator
     glm::glm
 )
+
+if(WIN32)
+    target_link_libraries(NeNEt PRIVATE ws2_32)
+endif()
 
 set(SHADER_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders)
 set(SHADER_OUT_DIR $<TARGET_FILE_DIR:NeNEt>/shaders)
@@ -94,5 +109,13 @@ add_dependencies(NeNEt Shaders)
 add_custom_command(TARGET NeNEt POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADER_OUT_DIR}
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/shaders_built ${SHADER_OUT_DIR}
-    COMMENT "复制 shader 到 exe 目录"
+    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:NeNEt>/textures
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets/textures
+        $<TARGET_FILE_DIR:NeNEt>/textures
+    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:NeNEt>/blocks
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets/blocks
+        $<TARGET_FILE_DIR:NeNEt>/blocks
+    COMMENT "复制 shader / 纹理 / 方块表 到 exe 目录"
 )
